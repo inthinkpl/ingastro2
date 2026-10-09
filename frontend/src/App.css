@@ -2,3 +2,9 @@
 .App {
   min-height: 100%;
 }
+
+/* Leaflet map */
+.leaflet-container { background: #0a0c10; border-radius: 0.75rem; }
+.leaflet-container, .leaflet-pane, .leaflet-top, .leaflet-bottom { z-index: 0 !important; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #12151c; color: #e5e7eb; }
+@keyframes mapPulse { 0% { transform: scale(.6); opacity: .5; } 100% { transform: scale(1.8); opacity: 0; } }

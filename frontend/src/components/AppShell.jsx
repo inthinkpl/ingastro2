@@ -17,6 +17,7 @@ import {
   Clock,
   Truck,
   ExternalLink,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "@/contexts/LocationContext";
@@ -40,6 +41,7 @@ const NAV = [
   { to: "/locations", label: "Lokale", icon: Building2, testid: "nav-locations" },
   { to: "/employees", label: "Personel", icon: Users, testid: "nav-employees" },
   { to: "/rcp", label: "RCP Czas pracy", icon: Clock, testid: "nav-rcp", mod: "rcp" },
+  { to: "/dispatch", label: "Dyspozytornia", icon: MapPin, testid: "nav-dispatch", mod: "courier" },
   { to: "/inventory", label: "Magazyn BOM", icon: Package, testid: "nav-inventory", mod: "inventory" },
   { to: "/store-settings", label: "Sklep online", icon: Globe, testid: "nav-store-settings", mod: "ecommerce" },
   { to: "/integrations", label: "Integracje", icon: Plug, testid: "nav-integrations", mod: "pyszne" },

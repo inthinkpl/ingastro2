@@ -6,10 +6,14 @@ inGastro modules (iteration 3):
 - Platform Super Admin: SaaS module catalog, pricing, feature toggles, tenant management.
 """
 import logging
-from datetime import datetime, timezone
+import io
+import math
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Literal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from server import (
@@ -233,6 +237,162 @@ async def admin_sms(limit: int = 50, admin: dict = Depends(require_roles("supera
 
 
 # ---------------------------------------------------------------------------
+# SaaS invoices (super admin) – monthly subscription + SMS usage per tenant
+# ---------------------------------------------------------------------------
+def _period_bounds(period: str) -> tuple:
+    """period = 'YYYY-MM' -> (start_iso_prefix, next_month_prefix)."""
+    y, m = int(period[:4]), int(period[5:7])
+    nm = f"{y + 1}-01" if m == 12 else f"{y}-{m + 1:02d}"
+    return period, nm
+
+
+async def _build_invoice(tenant: dict, period: str, cfg: dict) -> dict:
+    tid = tenant["id"]
+    mods = await effective_modules(tenant)
+    prices = {m["key"]: m for m in cfg["modules"]}
+    lines = []
+    subtotal = 0.0
+    for key, on in mods.items():
+        m = prices.get(key)
+        if on and m and m["monthly_price"] > 0:
+            lines.append({"label": m["label"], "qty": 1, "unit": m["monthly_price"], "amount": m["monthly_price"]})
+            subtotal += m["monthly_price"]
+    start, nxt = _period_bounds(period)
+    sms_rows = await db.sms_messages.find({
+        "tenant_id": tid, "at": {"$gte": start, "$lt": nxt},
+    }).to_list(100000)
+    sms_count = len(sms_rows)
+    sms_cost = round(sum(r.get("cost", 0.0) for r in sms_rows), 2)
+    if sms_count:
+        lines.append({"label": f"Powiadomienia SMS ({sms_count} szt.)", "qty": sms_count,
+                      "unit": cfg["sms_price"], "amount": sms_cost})
+    total = round(subtotal + sms_cost, 2)
+    return {
+        "tenant_id": tid, "tenant_name": tenant.get("name"), "period": period,
+        "lines": lines, "subtotal_modules": round(subtotal, 2),
+        "sms_count": sms_count, "sms_cost": sms_cost, "total": total,
+        "currency": cfg["currency"],
+    }
+
+
+class InvoiceGenIn(BaseModel):
+    period: str = Field(pattern=r"^\d{4}-\d{2}$")
+
+
+@admin_router.post("/invoices/generate")
+async def admin_generate_invoices(body: InvoiceGenIn, admin: dict = Depends(require_roles("superadmin"))):
+    cfg = await get_platform_config()
+    tenants = await db.tenants.find({}).to_list(1000)
+    out = []
+    for t in tenants:
+        inv = await _build_invoice(t, body.period, cfg)
+        existing = await db.invoices.find_one({"tenant_id": t["id"], "period": body.period})
+        if existing:
+            await db.invoices.update_one(
+                {"id": existing["id"]},
+                {"$set": {**inv, "status": existing.get("status", "unpaid"), "updated_at": now_iso()}},
+            )
+            out.append(strip_mongo(await db.invoices.find_one({"id": existing["id"]})))
+        else:
+            doc = {"id": new_id(), **inv, "status": "unpaid", "paid_at": None,
+                   "number": f"FV/{body.period}/{t['id'][:6].upper()}", "created_at": now_iso()}
+            await db.invoices.insert_one(doc)
+            out.append(strip_mongo(await db.invoices.find_one({"id": doc["id"]})))
+    return out
+
+
+@admin_router.get("/invoices")
+async def admin_invoices(period: Optional[str] = None, status: Optional[str] = None,
+                         admin: dict = Depends(require_roles("superadmin"))):
+    q: Dict[str, Any] = {}
+    if period:
+        q["period"] = period
+    if status:
+        q["status"] = status
+    rows = await db.invoices.find(q).sort("created_at", -1).to_list(2000)
+    return [strip_mongo(r) for r in rows]
+
+
+@admin_router.get("/invoices/summary")
+async def admin_invoices_summary(admin: dict = Depends(require_roles("superadmin"))):
+    rows = await db.invoices.find({}).to_list(5000)
+    outstanding = round(sum(r["total"] for r in rows if r.get("status") != "paid"), 2)
+    paid = round(sum(r["total"] for r in rows if r.get("status") == "paid"), 2)
+    return {
+        "outstanding": outstanding, "paid": paid, "total": round(outstanding + paid, 2),
+        "count": len(rows), "unpaid_count": sum(1 for r in rows if r.get("status") != "paid"),
+    }
+
+
+class InvoiceStatusIn(BaseModel):
+    status: Literal["paid", "unpaid"]
+
+
+@admin_router.put("/invoices/{iid}")
+async def admin_update_invoice(iid: str, body: InvoiceStatusIn, admin: dict = Depends(require_roles("superadmin"))):
+    patch = {"status": body.status, "paid_at": now_iso() if body.status == "paid" else None}
+    r = await db.invoices.update_one({"id": iid}, {"$set": patch})
+    if not r.matched_count:
+        raise HTTPException(404, "Faktura nie istnieje")
+    return strip_mongo(await db.invoices.find_one({"id": iid}))
+
+
+@admin_router.get("/invoices/{iid}/pdf")
+async def admin_invoice_pdf(iid: str, admin: dict = Depends(require_roles("superadmin"))):
+    inv = await db.invoices.find_one({"id": iid})
+    if not inv:
+        raise HTTPException(404, "Faktura nie istnieje")
+    pdf = _render_invoice_pdf(inv)
+    return StreamingResponse(io.BytesIO(pdf), media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{inv.get("number", iid)}.pdf"'})
+
+
+def _render_invoice_pdf(inv: dict) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=20 * mm)
+    styles = getSampleStyleSheet()
+    h = ParagraphStyle("h", parent=styles["Title"], fontSize=20, textColor=colors.HexColor("#0f172a"))
+    muted = ParagraphStyle("m", parent=styles["Normal"], textColor=colors.HexColor("#64748b"), fontSize=9)
+    story = []
+    story.append(Paragraph("inGastro Cloud OS", h))
+    story.append(Paragraph("Faktura za uslugi SaaS", muted))
+    story.append(Spacer(1, 8 * mm))
+    story.append(Paragraph(f"<b>Nr faktury:</b> {inv.get('number', '')}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Okres rozliczeniowy:</b> {inv.get('period', '')}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Klient (tenant):</b> {inv.get('tenant_name', '')}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Status:</b> {'ZAPLACONA' if inv.get('status') == 'paid' else 'NIEZAPLACONA'}", styles["Normal"]))
+    story.append(Spacer(1, 8 * mm))
+
+    cur = inv.get("currency", "PLN")
+    data = [["Pozycja", "Ilosc", "Cena jedn.", "Kwota"]]
+    for ln in inv.get("lines", []):
+        data.append([ln["label"], str(ln["qty"]), f"{ln['unit']:.2f} {cur}", f"{ln['amount']:.2f} {cur}"])
+    data.append(["", "", "RAZEM", f"{inv.get('total', 0):.2f} {cur}"])
+    tbl = Table(data, colWidths=[90 * mm, 20 * mm, 30 * mm, 30 * mm])
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -2), 0.4, colors.HexColor("#e2e8f0")),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f1f5f9")),
+        ("FONTNAME", (2, -1), (-1, -1), "Helvetica-Bold"),
+        ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 10 * mm))
+    story.append(Paragraph("Dokument wygenerowany automatycznie przez platforme inGastro Cloud OS.", muted))
+    doc.build(story)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
 # Tenant-facing SMS settings
 # ---------------------------------------------------------------------------
 sms_router = APIRouter(prefix="/api/sms")
@@ -367,10 +527,44 @@ async def rcp_report(date_from: Optional[str] = None, date_to: Optional[str] = N
 # ---------------------------------------------------------------------------
 courier_router = APIRouter(prefix="/api/courier")
 
+_GEO_CACHE: Dict[str, dict] = {}
+
+
+def _haversine(a_lat, a_lng, b_lat, b_lng) -> float:
+    R = 6371.0
+    p1, p2 = math.radians(a_lat), math.radians(b_lat)
+    dphi = math.radians(b_lat - a_lat)
+    dlam = math.radians(b_lng - a_lng)
+    x = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlam / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(x))
+
+
+async def _geocode(address: str) -> Optional[dict]:
+    if not address:
+        return None
+    key = address.strip().lower()
+    if key in _GEO_CACHE:
+        return _GEO_CACHE[key]
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            r = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": address, "format": "json", "limit": 1, "countrycodes": "pl"},
+                headers={"User-Agent": "inGastroCloudOS/1.0 (dispatch)"},
+            )
+            data = r.json()
+            if data:
+                geo = {"lat": float(data[0]["lat"]), "lng": float(data[0]["lon"])}
+                _GEO_CACHE[key] = geo
+                return geo
+    except Exception as e:
+        log.warning(f"geocode failed: {e}")
+    return None
+
 
 def _delivery_view(o: dict) -> dict:
     keys = ("id", "number", "status", "order_type", "customer_name", "customer_phone",
-            "customer_address", "note", "totals", "items", "payment_status", "created_at", "location_id")
+            "customer_address", "note", "totals", "items", "payment_status", "created_at", "location_id", "geo")
     v = {k: o.get(k) for k in keys}
     v["item_count"] = sum(it.get("quantity", 1) for it in o.get("items", []))
     return v
@@ -384,7 +578,39 @@ async def courier_deliveries(location_id: Optional[str] = None,
     if location_id:
         q["location_id"] = location_id
     rows = await db.orders.find(q).sort("created_at", 1).to_list(200)
-    return [_delivery_view(o) for o in rows]
+    out = []
+    for o in rows:
+        if not o.get("geo") and o.get("customer_address"):
+            geo = await _geocode(o["customer_address"])
+            if geo:
+                o["geo"] = geo
+                await db.orders.update_one({"id": o["id"]}, {"$set": {"geo": geo}})
+        out.append(_delivery_view(o))
+    return out
+
+
+class CourierLocationIn(BaseModel):
+    lat: float
+    lng: float
+
+
+@courier_router.post("/location")
+async def courier_set_location(body: CourierLocationIn,
+                               actor: dict = Depends(require_actor_roles("courier", "owner", "manager"))):
+    await db.courier_locations.update_one(
+        {"employee_id": actor["id"]},
+        {"$set": {"employee_id": actor["id"], "name": actor.get("name"), "role": actor.get("role"),
+                  "tenant_id": actor["tenant_id"], "lat": body.lat, "lng": body.lng, "at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@courier_router.get("/locations")
+async def courier_locations(actor: dict = Depends(require_actor_roles("owner", "manager"))):
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+    rows = await db.courier_locations.find({"tenant_id": actor["tenant_id"]}).to_list(200)
+    return [{**strip_mongo(r), "online": r.get("at", "") >= cutoff} for r in rows]
 
 
 @courier_router.post("/deliveries/{oid}/depart")

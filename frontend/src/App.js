@@ -19,6 +19,7 @@ import Inventory from "@/pages/Inventory";
 import StoreSettings from "@/pages/StoreSettings";
 import Integrations from "@/pages/Integrations";
 import RCP from "@/pages/RCP";
+import Dispatch from "@/pages/Dispatch";
 import Store from "@/pages/store/Store";
 import StorePayment from "@/pages/store/StorePayment";
 import StoreOrder from "@/pages/store/StoreOrder";
@@ -71,6 +72,7 @@ function AppRoutes() {
                     <Route path="/employees" element={<Employees />} />
                     <Route path="/inventory" element={<Inventory />} />
                     <Route path="/rcp" element={<RCP />} />
+                    <Route path="/dispatch" element={<Dispatch />} />
                     <Route path="/store-settings" element={<StoreSettings />} />
                     <Route path="/integrations" element={<Integrations />} />
                   </Routes>
