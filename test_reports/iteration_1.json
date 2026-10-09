@@ -1,0 +1,29 @@
+{
+  "summary": "First-finish smoke test for inGastro Cloud OS MVP. Verified backend endpoints via curl (login, dashboard, locations, menu, orders, state machine) and full UI flow via Playwright (login -> dashboard -> POS order creation -> KDS start/ready -> Orders list -> OrderDetail -> Menu/Locations/Tables/Employees). Multi-tenant isolation confirmed via /register with fresh tenant seeing empty locations/products. Zero console errors.",
+  "tested_scope": ["frontend", "backend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login returns token+user+tenant for demo@savona.pl / demo1234 (HTTP 200)",
+    "POST /api/auth/register creates new tenant and returns token; new tenant's /api/locations and /api/menu/products return [] (multi-tenant isolation OK)",
+    "GET /api/analytics/dashboard returns revenue_today/orders_today/active_orders/avg_ticket/chart_7d/status_breakdown",
+    "GET /api/locations returns 2 seeded locations (Savona Centrum, Savona Kazimierz)",
+    "GET /api/menu/categories and /api/menu/products return seeded data",
+    "POST /api/orders creates order with correct totals (netto 26.02 + VAT 5.98 = 32.00 zł)",
+    "PUT /api/orders/{id}/status with invalid transition new->completed returns 400 'Niedozwolone przejście new → completed' (Polish error)",
+    "PUT /api/orders/{id}/status new->in_progress succeeds (200)",
+    "Login UI: form submits and navigates to '/' with dashboard rendered (KPIs, 7-day chart, status breakdown panel)",
+    "Location switcher visible in top header with 'Savona Centrum' label",
+    "POS flow: 4 products visible, product dialog opens with 3 variants + 5 modifiers, add-to-cart works, submit-order creates order",
+    "KDS: ticket appears for new order with kds-start/kds-ready testids; clicking Rozpocznij -> Gotowe transitions through states and removes ticket from KDS",
+    "Orders list: 2 order-row entries + filter-status Select dropdown present",
+    "Order Detail: shows items with 30cm variant, netto/VAT/razem breakdown, status history timeline (Nowe/W trakcie/Gotowe with timestamps), 2 transition buttons",
+    "Menu, Locations, Tables, Employees pages all load without errors; Employees shows 4 seeded staff with role badges + hourly rate + hidden PIN"
+  ],
+  "failed": [],
+  "action_items": [
+    "Minor: successful-login redirects to '/' (not '/dashboard'). Current behaviour works since root route renders Dashboard, but main agent may want to add explicit /dashboard route or redirect for cleaner UX / test expectations."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Order status endpoint is PUT /api/orders/{id}/status (not PATCH) and expects lowercase status values ('new','in_progress','ready','in_delivery','completed','cancelled'). Login response field is 'token' (not 'access_token'). WebSocket /api/ws/kds not independently tested but KDS page polling correctly displayed newly created order."
+}
