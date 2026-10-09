@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 3 testing (Super Admin SaaS panel + RCP time tracking + Courier app + mock SMS). Backend: 19/19 pytest pass in /app/backend/tests/test_modules_iter3.py covering: super admin login & role, /api/admin/overview KPIs, /api/admin/config GET+PUT (module price & sms_price persist, restore), /api/admin/tenants list + module override toggle reflected in /api/auth/me.tenant.modules via effective_modules, /api/admin/sms log, 403 for non-admins; RCP /clock with bad PIN -> 401, clock-in then clock-out flow using owner JWT via new get_actor dependency, /rcp/active + /rcp/entries + /rcp/report shape; /api/sms/settings GET+PUT (owner toggle on/off, platform_enabled + price + counters); Courier end-to-end: pin-login courier 4444 ok, waiter 2222 can pin-login but /courier/deliveries returns 403 (require_actor_roles), bad PIN rejected, create DELIVERY order -> transition new->in_progress->ready -> order appears in /courier/deliveries, /depart returns sms.sent=true when platform+tenant SMS ON (log counter increments) and status=in_delivery, /delivered sets status=completed, with tenant SMS OFF depart still works but sms.sent=false and sent_total unchanged; /api/public/tenant/pizzeria-savona resolves slug with courier_enabled. Frontend (Playwright, external REACT_APP_BACKEND_URL): Super admin login balordini@gmail.com -> admin-overview with KPIs (Tenanci, Użytkownicy, Zamówienia, MRR, Wysłane SMS, Przychód SMS); admin-nav-modules -> edit admin-module-price-rcp (41) + admin-sms-price (0.22) + admin-save-config -> values persist after tab switch; admin-nav-tenants shows admin-tenant-pizzeria-savona and chip admin-tenant-mod-pizzeria-savona-inventory toggles (visual confirmed); admin-nav-sms opens admin-sms-log; admin-logout works. Owner login demo@savona.pl -> sidebar shows nav-rcp AND nav-courier; /rcp page has rcp-active-section, rcp-report-section, rcp-from, rcp-to, rcp-export. POS rcp-open opens dialog -> keypad rcp-key-2 digits + rcp-submit works (toast). Courier portal /c/pizzeria-savona: PIN 2222 yields toast 'Ten PIN nie należy do kuriera' and stays on courier-login; PIN 4444 enters courier-app with Jakub Kowalczyk header + delivery #32 (TEST Kurier Klient) in queue with Dostarczone button.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_modules_iter3.py",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "No functional issues found in iteration 3 modules.",
+    "(Note) When running test_modules_iter3.py, pass -n 0 to disable xdist parallelism – the SMS tenant-enabled toggle is shared state and parallel workers can race (same guidance applies to iteration 2 suite).",
+    "(Nitpick) Courier login screen 'C' clear button has no data-testid; added via get_by_role in test (works but a data-testid='courier-key-clear' would be cleaner)."
+  ],
+  "critical_code_review_comments": [
+    "modules.py send_customer_sms: cost is charged even when the SMS gateway returns an error – OK for mock, but a real integration should persist a 'failed' status with cost=0.",
+    "modules.py admin_put_config rebuild of modules order relies on DEFAULT_MODULES ordering – fine, but any future module added only to DB won't survive the PUT round-trip (filtered out). Document this.",
+    "modules.py rcp_clock linearly scans employees + verify_password per record. Fine for demo (handful of PINs) but O(N) bcrypt per clock-in – consider indexing by PIN hash prefix or a per-tenant Bloom filter if employee count grows.",
+    "get_actor sets actor['role']/tenant_id from JWT payload; token payload MUST include tid/role on pin-login – already does, but if a future endpoint mints a minimal token it will silently drop role → 403s. Add a schema check in decode_token.",
+    "AppShell gating uses mods[n.mod] !== false (default-on). This is correct, but if platform-level module.enabled=false, the frontend still shows the item unless tenant override is explicit false. Backend effective_modules already AND-s them; frontend should respect it too for consistency."
+  ],
+  "updated_files": ["/app/backend/tests/test_modules_iter3.py (new, 19 tests)"],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100%"},
+  "test_credentials": "balordini@gmail.com/superadmin123 (superadmin), demo@savona.pl/demo1234 (owner), PINs 2222 waiter / 4444 courier (tenant pizzeria-savona)",
+  "seed_data_creation": "Tests created several TEST_ delivery orders and 1-2 SMS log entries (status='simulated'). Settings were restored (sms tenant_enabled=true at end).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full iter3 regression at /app/backend/tests/test_modules_iter3.py – ALWAYS run with 'pytest -n 0' to serialize (shared platform_config + tenant_settings state). Iteration 2 suite test_extensions.py still green. Super admin JWT lives on 'platform' tenant (no tenant doc) – /auth/me returns tenant=None for superadmin which is why App.js routes them to AdminPanel. Courier portal POST /auth/pin-login allows ANY role; role enforcement happens on /courier/* via require_actor_roles.",
+  "rca of the issue": "N/A – no failing cases after test adjustments (initial failures were test-side: used /me instead of /auth/me and parallel xdist race on shared SMS toggle; fixed by correcting path and running serial)."
+}

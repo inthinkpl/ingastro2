@@ -117,7 +117,7 @@ export default function CourierPortal() {
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
               <button key={d} onClick={() => setPin((p) => (p.length >= 6 ? p : p + d))} className="h-16 rounded-xl border border-border bg-[#12151c] text-xl font-mono active:bg-white/10" data-testid={`courier-key-${d}`}>{d}</button>
             ))}
-            <button onClick={() => setPin("")} className="h-16 rounded-xl border border-border text-muted-foreground active:bg-white/10 text-sm">C</button>
+            <button onClick={() => setPin("")} className="h-16 rounded-xl border border-border text-muted-foreground active:bg-white/10 text-sm" data-testid="courier-key-clear">C</button>
             <button onClick={() => setPin((p) => (p.length >= 6 ? p : p + "0"))} className="h-16 rounded-xl border border-border bg-[#12151c] text-xl font-mono active:bg-white/10" data-testid="courier-key-0">0</button>
             <button onClick={() => setPin((p) => p.slice(0, -1))} className="h-16 rounded-xl border border-border text-muted-foreground active:bg-white/10"><Delete size={18} className="mx-auto" /></button>
           </div>

@@ -38,11 +38,19 @@ Chmurowy system SaaS klasy ERP/POS do kompleksowego zarządzania sieciami lokali
 - ✅ **Pyszne.pl**: per-location API key, webhook `POST /api/integrations/pyszne/orders` (header `X-Pyszne-Api-Key`), SKU/name→product/variant mapping, extras→modifiers, unmapped flag, idempotent on `order_id`, source AGGREGATOR badge on KDS/Orders, test-order button, Menu Push (JSON export; real push if `menu_push_url` set, else `simulated`). UI `/integrations`.
 - Tests: `/app/test_reports/iteration_2.json` (23/23 backend, all frontend flows pass).
 
+## Implemented 2026-06 (iteration 3) – `/app/backend/modules.py`
+- ✅ **RCP – Czas pracy**: PIN clock-in/out on POS (`Zegar RCP` keypad dialog → `/api/rcp/clock`, auto toggles open/close via `time_entries`), live "obecnie w pracy" (`/api/rcp/active`), payroll report `/api/rcp/report` (hours × hourly_rate per employee) with date filters + CSV export on `/rcp` page. New `get_actor` dependency so PIN (employee) tokens work on protected endpoints.
+- ✅ **Aplikacja Kuriera**: standalone mobile portal `/c/{slug}` (public tenant resolve `/api/public/tenant/{slug}`, PIN login, courier role enforced via `require_actor_roles`). Delivery queue `/api/courier/deliveries` (DELIVERY orders status ready/in_delivery), Google-Maps navigation, `tel:` call, `/depart` (ready→in_delivery + customer SMS) and `/delivered` (in_delivery→completed). Link in sidebar (`nav-courier`).
+- ✅ **SMS (MOCK) – płatna opcja**: `send_customer_sms` logs to `sms_messages` (status `simulated`, cost = platform price) when platform SMS enabled AND tenant toggled on. Tenant toggle + usage/cost + recent log in `/store-settings` (`/api/sms/settings`). NO real gateway yet.
+- ✅ **Panel Super Admina** (new role `superadmin`, tenant_id `platform`, seeded `balordini@gmail.com`): `/api/admin/overview` KPIs (tenants/users/orders/MRR/SMS), `/config` SaaS module catalog (per-module monthly price + global enable toggle) + SMS price/global toggle, `/tenants` list with per-tenant module enable/disable + active flag, `/sms` global log. Frontend `AdminPanel.jsx` (App.js routes superadmin to it instead of tenant AppShell). Module gating: `/auth/me` returns `tenant.modules` via `effective_modules` (platform AND tenant override); `AppShell` hides nav items for disabled modules.
+- Tests: `/app/test_reports/iteration_3.json` (19/19 backend, 100% frontend). Run `pytest -n 0` (shared platform_config/tenant_settings state).
+
 ## Deferred Backlog (P1 / P2)
-- **P1**: SMS OTP loyalty, Delivery geofencing & courier mobile wallet
-- **P2**: RCP time logs (clock-in/out via PIN), payroll export
+- **P1**: SMS OTP loyalty (phone point collection), Delivery geofencing & courier GPS/route optimization & mobile wallet
+- **P1**: Real SMS gateway (Twilio) to replace the current mock
 - **P2**: ESC/POS local print relay service
 - **P2**: Stripe refunds UI, PayU production credentials from user (not yet provided)
+- **P2**: Super Admin – per-tenant plan/billing invoices, audit log
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`
