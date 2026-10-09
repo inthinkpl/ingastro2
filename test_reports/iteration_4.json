@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 4 testing complete (SaaS invoices + Courier GPS + Dispatch map + Leaflet/OSM maps + route optimization). Backend: 15/15 new tests PASS in /app/backend/tests/test_modules_iter4.py and iter3 regression 19/19 PASS. Covered: /admin/invoices/generate idempotent (re-run preserves 'paid' status, no duplicates per tenant+period), /admin/invoices list+filter, /admin/invoices/summary (outstanding+paid==total), PUT /admin/invoices/{id} status toggle updates summary deltas correctly, GET /admin/invoices/{id}/pdf returns application/pdf starting with %PDF (>500 bytes), module-disabled-via-tenant-override omits that line from regenerated invoice while preserving status, non-superadmin get 403; POST /courier/location (courier can push), GET /courier/locations (owner/manager only, courier 403 + waiter 403 on POST), online flag true within 15min; _geocode on 'Rynek Główny 1, Kraków' resolves to Kraków bbox (49-51,19-21) via Nominatim with retry, unresolvable address yields geo=null without 500, _GEO_CACHE visible in enriched order payload. Frontend (Playwright): Super admin -> admin-nav-invoices renders rows (2 tenants), set invoice-period to current month -> invoice-generate works, KPI Należności/Zapłacone update, invoice-status-{id} toggles label 'Niezapłacona'<->'Zapłacona', invoice-pdf-{id} present. Owner /dispatch: Leaflet map tiles load (OSM), 1 online courier marker (Jakub Kowalczyk) + 5 active delivery pins visible, dispatch-couriers + dispatch-deliveries lists populated, nav-dispatch present in sidebar, 'Aplikacja Kuriera' link present. Courier portal /c/pizzeria-savona with granted geolocation (Kraków center 50.0614,19.9372): PIN 4444 login -> map-view shows self pulsing pin + delivery pins, 'Optymalizuj trasę' (courier-optimize) ON by default renders numbered amber badges + per-leg km (observed 0.1 km, 0.3 km), toggling OFF removes badges. Module gating end-to-end: disabling 'courier' via /admin/tenants override makes /public/tenant/{slug}.courier_enabled=false AND hides nav-dispatch + Aplikacja Kuriera on owner reload; re-enabling restores both.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_modules_iter4.py",
+    "/app/test_reports/pytest/iter4_results.xml",
+    "/app/backend/tests/test_modules_iter3.py"
+  ],
+  "action_items": [
+    "No functional issues found in iteration 4. Everything green.",
+    "(Nitpick) The MapView marker popups bind HTML via bindPopup(`<b>${m.label}</b>...`) with no escaping – acceptable since all current label/sub come from backend-controlled or employee data, but if customer-provided fields (customer_name/customer_address) ever contain '<' this will render raw HTML. Consider lightweight escape before injection.",
+    "(Nitpick) Courier portal watchPosition posts /courier/location every 15s but on logout it only clears the watcher implicitly via effect cleanup – fine; no leak observed.",
+    "(Note) Nominatim is a public rate-limited service (~1 req/s). The first fetch of a never-seen address may return null; retry on next fetch works (used in tests via explicit retry loop). Consider documenting the dependency and a small backoff/pre-warm on order creation for production."
+  ],
+  "critical_code_review_comments": [
+    "modules.py _render_invoice_pdf: PDF label uses 'ZAPLACONA/NIEZAPLACONA' and 'Faktura za uslugi' (ASCII, no Polish diacritics) because reportlab default font doesn't ship Polish glyphs out of the box. Correct choice for correctness, but if desired, embed a UTF-8 font (DejaVuSans) to show 'Zapłacona', 'Niezapłacona', 'za usługi'. Low priority.",
+    "modules.py _build_invoice loads SMS rows with .to_list(100000) – OK for current scale but should be aggregated via $group to keep memory bounded in production.",
+    "modules.py _GEO_CACHE is an in-process dict; multi-worker gunicorn will have per-worker caches. For MVP fine. For prod, back it with Mongo (geo already persisted on order.geo so hits via that path).",
+    "modules.py admin_generate_invoices POSTs then does find_one(..., id) to return strip_mongo – a tiny extra DB roundtrip per tenant; acceptable but could return the inv dict directly (already strip_mongo-safe since it was built in code).",
+    "Dispatch.jsx polls /courier/locations + /courier/deliveries every 10s. The deliveries endpoint re-geocodes any order lacking geo on every call – after cache warm it's a no-op, but on first call for a batch of fresh orders with distinct addresses it could issue a burst of Nominatim requests violating the 1 req/s policy. Consider sequential geocoding with sleep(1) in the enrich loop or client-side batching.",
+    "CourierPortal.jsx haversine uses origin=myPos (watchPosition). If GPS is denied, ordered falls back to raw list (correct) but then also hides numbered badges – good. Minor: when optimize=true and myPos exists but all deliveries lack geo, badges correctly 0 – verified."
+  ],
+  "updated_files": ["/app/backend/tests/test_modules_iter4.py (new, 15 tests)"],
+  "success_rate": {"backend": "100% (15/15 iter4 + 19/19 iter3 regression)", "frontend": "100%"},
+  "test_credentials": "balordini@gmail.com/superadmin123 (superadmin), demo@savona.pl/demo1234 (owner), PIN 4444 courier Jakub Kowalczyk, PIN 2222 waiter (tenant pizzeria-savona)",
+  "seed_data_creation": "Tests created a few TEST_ delivery orders (GeoClient + Kurier Klient) and completed them. Invoices were generated for current month (2 tenants), toggled paid/unpaid then toggled back. Courier location row upserted for Jakub Kowalczyk at Kraków center.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full iter4 regression at /app/backend/tests/test_modules_iter4.py – run with 'pytest -n 0' (shared tenant_settings + invoices state). Iter3 suite still green. Geocoding uses Nominatim (public, ~1 req/s) – add retries when writing tests that depend on fresh addresses. Playwright geolocation: use page.context.grant_permissions(['geolocation'], origin=...) + set_geolocation BEFORE page.goto to the courier portal URL."
+}

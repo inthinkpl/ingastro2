@@ -8,6 +8,7 @@ inGastro modules (iteration 3):
 import logging
 import io
 import math
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Literal
 
@@ -579,8 +580,12 @@ async def courier_deliveries(location_id: Optional[str] = None,
         q["location_id"] = location_id
     rows = await db.orders.find(q).sort("created_at", 1).to_list(200)
     out = []
+    geocoded = 0
     for o in rows:
         if not o.get("geo") and o.get("customer_address"):
+            if geocoded:  # respect Nominatim ~1 req/s between live lookups
+                await asyncio.sleep(1.0)
+            geocoded += 1
             geo = await _geocode(o["customer_address"])
             if geo:
                 o["geo"] = geo

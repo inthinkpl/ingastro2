@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 const pin = (color, pulse) =>
   L.divIcon({
     className: "",
@@ -37,7 +39,7 @@ export default function MapView({ markers = [], center = [52.11, 19.42], zoom = 
     markers.forEach((m) => {
       if (m.lat == null || m.lng == null) return;
       const mk = L.marker([m.lat, m.lng], { icon: pin(m.color || "#3b82f6", m.pulse) });
-      if (m.label) mk.bindPopup(`<b>${m.label}</b>${m.sub ? `<br/><span style="color:#64748b">${m.sub}</span>` : ""}`);
+      if (m.label) mk.bindPopup(`<b>${esc(m.label)}</b>${m.sub ? `<br/><span style="color:#64748b">${esc(m.sub)}</span>` : ""}`);
       mk.addTo(layer);
       pts.push([m.lat, m.lng]);
     });

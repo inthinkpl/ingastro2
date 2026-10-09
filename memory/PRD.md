@@ -45,12 +45,17 @@ Chmurowy system SaaS klasy ERP/POS do kompleksowego zarządzania sieciami lokali
 - ✅ **Panel Super Admina** (new role `superadmin`, tenant_id `platform`, seeded `balordini@gmail.com`): `/api/admin/overview` KPIs (tenants/users/orders/MRR/SMS), `/config` SaaS module catalog (per-module monthly price + global enable toggle) + SMS price/global toggle, `/tenants` list with per-tenant module enable/disable + active flag, `/sms` global log. Frontend `AdminPanel.jsx` (App.js routes superadmin to it instead of tenant AppShell). Module gating: `/auth/me` returns `tenant.modules` via `effective_modules` (platform AND tenant override); `AppShell` hides nav items for disabled modules.
 - Tests: `/app/test_reports/iteration_3.json` (19/19 backend, 100% frontend). Run `pytest -n 0` (shared platform_config/tenant_settings state).
 
+## Implemented 2026-06 (iteration 4) – `/app/backend/modules.py`
+- ✅ **Faktury SaaS** (panel Super Admina): miesięczna faktura per tenant = suma abonamentów włączonych modułów + koszt zużytych SMS w okresie. Endpoints `/api/admin/invoices/generate` (idempotentny upsert per tenant+period, zachowuje status), `/invoices` (+filtr period/status), `/invoices/summary` (należności/zapłacone), PUT `/invoices/{id}` (paid/unpaid), GET `/invoices/{id}/pdf` (reportlab, numer `FV/{period}/{tenant6}`). Zakładka „Faktury" w `AdminPanel.jsx` (KPI + tabela + toggle statusu + pobieranie PDF).
+- ✅ **GPS Kuriera** (Leaflet + OpenStreetMap, bez klucza API): portal kuriera wysyła pozycję (`watchPosition` → POST `/api/courier/location`, throttle 15s), mapa z własnym pinem + pinami dostaw, „Optymalizuj trasę" (nearest-neighbor po haversine, numerowane przystanki + km na odcinek). Geokodowanie adresów przez Nominatim (`_geocode`, cache w `order.geo` + `_GEO_CACHE`, serializowane 1 req/s).
+- ✅ **Dyspozytornia** (`/dispatch`, owner/manager, moduł `courier`): mapa na żywo z pozycjami kurierów (`/api/courier/locations`, online < 15 min) + aktywne dostawy, odświeżanie co 10s. Komponent `components/MapView.jsx` (vanilla Leaflet, escapowane popupy). Nav `nav-dispatch`.
+- Tests: `/app/test_reports/iteration_4.json` (15/15 nowych + 19/19 regresji, frontend 100%). SMS nadal MOCK (Twilio odroczone).
+
 ## Deferred Backlog (P1 / P2)
-- **P1**: SMS OTP loyalty (phone point collection), Delivery geofencing & courier GPS/route optimization & mobile wallet
-- **P1**: Real SMS gateway (Twilio) to replace the current mock
+- **P1**: Twilio – realna bramka SMS (odroczone przez użytkownika), SMS OTP loyalty
+- **P2**: Faktury – czcionka UTF-8 w PDF (polskie znaki), agregacja SMS przez $group, geo-cache w Mongo/pre-warm przy tworzeniu zamówienia
 - **P2**: ESC/POS local print relay service
 - **P2**: Stripe refunds UI, PayU production credentials from user (not yet provided)
-- **P2**: Super Admin – per-tenant plan/billing invoices, audit log
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`
