@@ -120,7 +120,15 @@ export default function KDS() {
                   </div>
                 </div>
                 <div className="px-4 py-2 text-xs text-muted-foreground border-b border-border/60 flex items-center justify-between">
-                  <span>{o.order_type === "DINE_IN" ? "Stolik" : o.order_type}</span>
+                  <span className="flex items-center gap-2">
+                    {o.order_type === "DINE_IN" ? "Stolik" : o.order_type}
+                    {o.source === "AGGREGATOR" && (
+                      <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30 text-[10px] font-semibold" data-testid={`kds-source-${o.number}`}>PYSZNE.PL</span>
+                    )}
+                    {o.source === "ECOMMERCE" && (
+                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-semibold" data-testid={`kds-source-${o.number}`}>ONLINE</span>
+                    )}
+                  </span>
                   {o.status === "in_progress" && (
                     <span className="text-amber-400 font-medium">W trakcie</span>
                   )}

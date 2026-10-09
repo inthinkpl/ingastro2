@@ -15,6 +15,13 @@ import Menu from "@/pages/Menu";
 import Locations from "@/pages/Locations";
 import Tables from "@/pages/Tables";
 import Employees from "@/pages/Employees";
+import Inventory from "@/pages/Inventory";
+import StoreSettings from "@/pages/StoreSettings";
+import Integrations from "@/pages/Integrations";
+import Store from "@/pages/store/Store";
+import StorePayment from "@/pages/store/StorePayment";
+import StoreOrder from "@/pages/store/StoreOrder";
+import { detectStoreSlug } from "@/lib/store";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -30,8 +37,13 @@ function Protected({ children }) {
 
 function AppRoutes() {
   const { user } = useAuth();
+  const subSlug = detectStoreSlug();
   return (
     <Routes>
+      <Route path="/s/:slug" element={<Store />} />
+      <Route path="/s/:slug/payment/:result" element={<StorePayment />} />
+      <Route path="/s/:slug/order/:oid" element={<StoreOrder />} />
+      {subSlug && <Route path="/" element={<Navigate to={`/s/${subSlug}`} replace />} />}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
       <Route
@@ -50,6 +62,9 @@ function AppRoutes() {
                   <Route path="/locations" element={<Locations />} />
                   <Route path="/tables" element={<Tables />} />
                   <Route path="/employees" element={<Employees />} />
+                  <Route path="/inventory" element={<Inventory />} />
+                  <Route path="/store-settings" element={<StoreSettings />} />
+                  <Route path="/integrations" element={<Integrations />} />
                 </Routes>
               </AppShell>
             </LocationProvider>

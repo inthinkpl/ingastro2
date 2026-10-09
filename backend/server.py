@@ -178,13 +178,22 @@ class ProductModifierIn(BaseModel):
     price: float = 0.0
 
 
+class RecipeLineIn(BaseModel):
+    ingredient_id: str
+    qty: float
+    variant_id: Optional[str] = None
+
+
 class ProductIn(BaseModel):
     category_id: str
     name: str
     description: str = ""
     image_url: Optional[str] = None
+    sku: Optional[str] = None
+    available_online: bool = True
     variants: List[ProductVariantIn] = []
     modifiers: List[ProductModifierIn] = []
+    recipe: List[RecipeLineIn] = []
 
 
 class EmployeeIn(BaseModel):
@@ -226,6 +235,10 @@ class OrderIn(BaseModel):
 
 class OrderStatusUpdate(BaseModel):
     status: Literal["new", "in_progress", "ready", "in_delivery", "completed", "cancelled"]
+
+
+class OrderStatusSelfUpdate(OrderStatusUpdate):
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -426,8 +439,11 @@ async def create_product(body: ProductIn, user: dict = Depends(require_roles("ow
         "name": body.name,
         "description": body.description,
         "image_url": body.image_url,
+        "sku": body.sku,
+        "available_online": body.available_online,
         "variants": variants,
         "modifiers": modifiers,
+        "recipe": [r.model_dump() for r in body.recipe],
         "created_at": now_iso(),
     }
     await db.products.insert_one(doc)
@@ -446,6 +462,10 @@ async def update_product(pid: str, body: ProductIn, user: dict = Depends(require
         "variants": variants,
         "modifiers": modifiers,
     }
+    for opt in ("sku", "available_online", "recipe"):
+        if opt in body.model_fields_set:
+            v = getattr(body, opt)
+            patch[opt] = [r.model_dump() for r in v] if opt == "recipe" else v
     await db.products.update_one({"id": pid, "tenant_id": user["tenant_id"]}, {"$set": patch})
     doc = await db.products.find_one({"id": pid})
     return strip_mongo(doc)
@@ -504,6 +524,7 @@ async def delete_employee(eid: str, user: dict = Depends(require_roles("owner"))
 # Orders – State Machine
 # ---------------------------------------------------------------------------
 STATE_TRANSITIONS = {
+    "pending_payment": {"new", "cancelled"},
     "new": {"in_progress", "cancelled"},
     "in_progress": {"ready", "cancelled"},
     "ready": {"in_delivery", "completed", "cancelled"},
@@ -555,47 +576,84 @@ async def get_order(oid: str, user: dict = Depends(get_current_user)):
     return strip_mongo(o)
 
 
+async def persist_order(tenant_id: str, loc: dict, items: List[dict], actor_name: str,
+                        status: str = "new", extra: Optional[dict] = None, **fields) -> dict:
+    """Shared order creation for POS / storefront / aggregators (totals, numbering, stock, KDS push)."""
+    from extensions import apply_stock_for_order
+    totals = compute_totals(items, loc.get("vat_rate", 23.0))
+    if extra and extra.get("delivery_fee"):
+        totals["delivery_fee"] = round(extra["delivery_fee"], 2)
+        totals["gross"] = round(totals["gross"] + totals["delivery_fee"], 2)
+    seq = await next_order_number(tenant_id, loc["id"])
+    doc = {
+        "id": new_id(),
+        "tenant_id": tenant_id,
+        "location_id": loc["id"],
+        "number": seq,
+        "order_type": fields.get("order_type", "DINE_IN"),
+        "source": fields.get("source", "POS"),
+        "table_id": fields.get("table_id"),
+        "customer_name": fields.get("customer_name"),
+        "customer_phone": fields.get("customer_phone"),
+        "customer_address": fields.get("customer_address"),
+        "items": items,
+        "note": fields.get("note", ""),
+        "status": status,
+        "payment_status": fields.get("payment_status", "cash"),
+        "payment_provider": fields.get("payment_provider"),
+        "created_by": fields.get("created_by"),
+        "created_by_name": actor_name,
+        "totals": totals,
+        "stock_deducted": False,
+        "status_history": [{"status": status, "at": now_iso(), "by": actor_name}],
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        **(extra or {}),
+    }
+    await db.orders.insert_one(doc)
+    if status == "new":
+        await apply_stock_for_order(doc, "new")
+        await manager.broadcast(kds_channel(tenant_id, loc["id"]), {
+            "event": "order.created",
+            "order": strip_mongo({**doc}),
+        })
+    return strip_mongo(doc)
+
+
+async def transition_order(o: dict, new_status: str, actor_name: str) -> dict:
+    from extensions import apply_stock_for_order
+    current = o["status"]
+    if new_status not in STATE_TRANSITIONS[current]:
+        raise HTTPException(400, f"Niedozwolone przejście {current} → {new_status}")
+    history = o.get("status_history", [])
+    history.append({"status": new_status, "at": now_iso(), "by": actor_name})
+    o["status"] = new_status
+    o["status_history"] = history
+    o["updated_at"] = now_iso()
+    await db.orders.update_one(
+        {"id": o["id"]},
+        {"$set": {"status": new_status, "updated_at": o["updated_at"], "status_history": history}},
+    )
+    await apply_stock_for_order(o, new_status)
+    await manager.broadcast(kds_channel(o["tenant_id"], o["location_id"]), {
+        "event": "order.created" if (current == "pending_payment" and new_status == "new") else "order.status",
+        "order": strip_mongo({**o}),
+    })
+    return strip_mongo(o)
+
+
 @api.post("/orders")
 async def create_order(body: OrderIn, user: dict = Depends(get_current_user)):
     loc = await db.locations.find_one({"id": body.location_id, "tenant_id": user["tenant_id"]})
     if not loc:
         raise HTTPException(404, "Location not found")
-
-    items = []
-    for it in body.items:
-        d = it.model_dump()
-        items.append(d)
-    totals = compute_totals(items, loc.get("vat_rate", 23.0))
-    seq = await next_order_number(user["tenant_id"], body.location_id)
-
-    doc = {
-        "id": new_id(),
-        "tenant_id": user["tenant_id"],
-        "location_id": body.location_id,
-        "number": seq,
-        "order_type": body.order_type,
-        "source": body.source,
-        "table_id": body.table_id,
-        "customer_name": body.customer_name,
-        "customer_phone": body.customer_phone,
-        "customer_address": body.customer_address,
-        "items": items,
-        "note": body.note,
-        "status": "new",
-        "created_by": user.get("id"),
-        "created_by_name": user.get("name"),
-        "totals": totals,
-        "status_history": [{"status": "new", "at": now_iso(), "by": user.get("name")}],
-        "created_at": now_iso(),
-        "updated_at": now_iso(),
-    }
-    await db.orders.insert_one(doc)
-
-    await manager.broadcast(kds_channel(user["tenant_id"], body.location_id), {
-        "event": "order.created",
-        "order": strip_mongo({**doc}),
-    })
-    return strip_mongo(doc)
+    items = [it.model_dump() for it in body.items]
+    return await persist_order(
+        user["tenant_id"], loc, items, user.get("name"),
+        order_type=body.order_type, source=body.source, table_id=body.table_id,
+        customer_name=body.customer_name, customer_phone=body.customer_phone,
+        customer_address=body.customer_address, note=body.note, created_by=user.get("id"),
+    )
 
 
 @api.put("/orders/{oid}/status")
@@ -603,25 +661,7 @@ async def update_order_status(oid: str, body: OrderStatusUpdate, user: dict = De
     o = await db.orders.find_one({"id": oid, "tenant_id": user["tenant_id"]})
     if not o:
         raise HTTPException(404, "Not found")
-    current = o["status"]
-    if body.status not in STATE_TRANSITIONS[current]:
-        raise HTTPException(400, f"Niedozwolone przejście {current} → {body.status}")
-
-    history = o.get("status_history", [])
-    history.append({"status": body.status, "at": now_iso(), "by": user.get("name")})
-    await db.orders.update_one(
-        {"id": oid},
-        {"$set": {"status": body.status, "updated_at": now_iso(), "status_history": history}},
-    )
-    o["status"] = body.status
-    o["status_history"] = history
-    o["updated_at"] = now_iso()
-
-    await manager.broadcast(kds_channel(user["tenant_id"], o["location_id"]), {
-        "event": "order.status",
-        "order": strip_mongo({**o}),
-    })
-    return strip_mongo(o)
+    return await transition_order(o, body.status, user.get("name"))
 
 
 # ---------------------------------------------------------------------------
@@ -818,6 +858,7 @@ async def on_startup():
     except Exception as e:
         log.warning(f"Index creation: {e}")
     await seed_demo()
+    await seed_extensions()
 
 
 @app.on_event("shutdown")
@@ -831,3 +872,9 @@ async def root():
 
 
 app.include_router(api)
+
+from extensions import inventory_router, store_router, pyszne_router, settings_router, seed_extensions  # noqa: E402
+app.include_router(inventory_router)
+app.include_router(store_router)
+app.include_router(pyszne_router)
+app.include_router(settings_router)

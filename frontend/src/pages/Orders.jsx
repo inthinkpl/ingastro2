@@ -13,6 +13,7 @@ import {
 
 const STATUS_LABEL = {
   "": "Wszystkie",
+  pending_payment: "Oczekuje na płatność",
   new: "Nowe",
   in_progress: "W trakcie",
   ready: "Gotowe",
@@ -22,6 +23,7 @@ const STATUS_LABEL = {
 };
 
 const STATUS_COLOR = {
+  pending_payment: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   new: "bg-blue-500/20 text-blue-300 border-blue-500/30",
   in_progress: "bg-amber-500/20 text-amber-300 border-amber-500/30",
   ready: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
@@ -93,7 +95,14 @@ export default function Orders() {
               {o.items.slice(0, 2).map((i) => `${i.quantity}× ${i.product_name}`).join(", ")}
               {o.items.length > 2 && ` · +${o.items.length - 2}`}
             </div>
-            <div className="text-xs text-muted-foreground">{o.order_type}</div>
+            <div className="text-xs text-muted-foreground">
+              {o.order_type}
+              {o.source !== "POS" && (
+                <span className="ml-2 px-1.5 py-0.5 rounded bg-white/5 border border-border text-[10px]" data-testid={`order-source-${o.number}`}>
+                  {o.source === "AGGREGATOR" ? "Pyszne.pl" : "Online"}
+                </span>
+              )}
+            </div>
             <div>
               <span className={`text-xs px-2 py-0.5 rounded border ${STATUS_COLOR[o.status]}`}>
                 {STATUS_LABEL[o.status]}

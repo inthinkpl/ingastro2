@@ -11,6 +11,9 @@ import {
   LogOut,
   ChevronDown,
   Store,
+  Package,
+  Globe,
+  Plug,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "@/contexts/LocationContext";
@@ -33,6 +36,9 @@ const NAV = [
   { to: "/tables", label: "Stoliki", icon: Grid3x3, testid: "nav-tables" },
   { to: "/locations", label: "Lokale", icon: Building2, testid: "nav-locations" },
   { to: "/employees", label: "Personel", icon: Users, testid: "nav-employees" },
+  { to: "/inventory", label: "Magazyn BOM", icon: Package, testid: "nav-inventory" },
+  { to: "/store-settings", label: "Sklep online", icon: Globe, testid: "nav-store-settings" },
+  { to: "/integrations", label: "Integracje", icon: Plug, testid: "nav-integrations" },
 ];
 
 export default function AppShell({ children }) {

@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 const STATUS_LABEL = {
+  pending_payment: "Oczekuje na płatność",
   new: "Nowe",
   in_progress: "W trakcie",
   ready: "Gotowe",
