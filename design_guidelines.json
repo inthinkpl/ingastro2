@@ -1,0 +1,152 @@
+{
+  "theme": "dark",
+  "language": "pl",
+  "typography": {
+    "headings": {
+      "family": "Outfit, sans-serif",
+      "weights": ["400", "500", "700"],
+      "usage": "Use tight letter spacing (tracking-tight) for all headings above 32px. Use uppercase and wide spacing (tracking-[0.2em]) for overlines/labels."
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "Use for dense data, KDS tickets, and POS item lists. High legibility is crucial for the ERP workflow."
+    },
+    "sizes": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg sm:text-xl",
+      "body": "text-sm sm:text-base",
+      "small": "text-xs"
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "#0A0C10",
+      "surface": "#12151C",
+      "surface_elevated": "#1A1D24"
+    },
+    "primary": {
+      "default": "#3B82F6",
+      "hover": "#60A5FA",
+      "text": "#FFFFFF"
+    },
+    "semantic": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444",
+      "info": "#3B82F6",
+      "modifier_add": "#10B981",
+      "modifier_remove": "#EF4444"
+    },
+    "text": {
+      "primary": "#F3F4F6",
+      "secondary": "#9CA3AF",
+      "muted": "#6B7280"
+    },
+    "border": {
+      "default": "#272A35",
+      "focus": "#3B82F6"
+    },
+    "guidelines": "Use deep neutral surfaces. Apply semantic colors for transaction states and KDS timers. Ensure 4.5:1 contrast for text. DO NOT use complete transparent background in header, overlays, any surface that has content under it."
+  },
+  "visual_enhancers": {
+    "surfaces": "Use flat solid surfaces with 1px subtle borders (border-border). Avoid glassmorphism for clinical/data-heavy POS and KDS screens to maximize clarity.",
+    "shadows": "Use subtle ambient shadows for elevated components, but rely more on borders for separation in dark mode.",
+    "borders": "Expose the skeleton. Use grid borders (border-r border-b border-border/40) for dense KDS grids or POS item lists.",
+    "icons": "Use Phosphor Icons (@phosphor-icons/react) for dense dashboards and POS."
+  },
+  "components": {
+    "cards": "Flat background, 1px subtle border, no shadow by default. On hover: slight lift (-translate-y-1) and subtle shadow.",
+    "buttons": "Modern sharp or slightly rounded (rounded-md) styles. Primary action should use the vivid blue accent. Include clear hover and focus states.",
+    "inputs": "Use Shadcn UI inputs, customized with dark backgrounds and vivid blue focus rings.",
+    "tables": "High density, clean borders, alternating row colors (subtle) if necessary.",
+    "kds_ticket": "Card-based ticket. Header color changes based on SLA (Green -> Yellow -> Red). Highlight ADD/REMOVE modifiers explicitly with background badges or colored text.",
+    "pos_table_map": "Visual floor plan with clickable table units. Color-code tables (Open: Gray, Seated: Blue, Ordered: Yellow, Served: Green)."
+  },
+  "grids": {
+    "kds_grid": "High density grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5. Tight gap (gap-4).",
+    "pos_grid": "Split view: 2/3 for floor plan/menu grids, 1/3 for current order ticket.",
+    "dashboard_grid": "Bento style for KPIs. Base grid: grid-cols-1 md:grid-cols-4. Wide gaps."
+  },
+  "layouts": {
+    "app_shell": "Sidebar navigation (collapsible) + Top header (Tenant switcher, User profile, Current Location) + Main content area.",
+    "pos_layout": "Header for location/tenant info. Main area: visual table map (or menu grid) on left, cart/order summary on right.",
+    "spacing": "Use Tailwind scale (p-2, p-4, p-6). For POS, keep it dense (p-2 to p-4) to maximize screen real estate."
+  },
+  "motion": {
+    "interactions": "Hover states on all interactive elements. Click/press states. Focus states.",
+    "transitions": "Use specific properties (transition: transform 0.2s ease, opacity 0.2s ease). Do NOT use transition-all.",
+    "kds_updates": "Subtle flash or slide-in animation when a new ticket arrives in KDS."
+  },
+  "accessibility": {
+    "contrast": "Minimum 4.5:1 for normal text, 3:1 for large text.",
+    "focus": "Always provide visible focus indicators (ring-2 ring-primary).",
+    "testing": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., data-testid='pos-table-4').",
+    "motion": "Respect prefers-reduced-motion."
+  },
+  "media": {
+    "icons_library": "@phosphor-icons/react",
+    "charts_library": "recharts (wrapped by Shadcn Chart components)"
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1593504049359-74330189a345?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwxfHxkZWxpY2lvdXMlMjBuZWFwb2xpdGFuJTIwcGl6emElMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTE1NjYxOTB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Delicious neapolitan pizza (close up)",
+      "category": "menu_item"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1571997478779-2adcbbe9ab2f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwyfHxkZWxpY2lvdXMlMjBuZWFwb2xpdGFuJTIwcGl6emElMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTE1NjYxOTB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Two pizzas with selective focus",
+      "category": "menu_item"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1662452883375-9226ea22c765?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwzfHxnb3VybWV0JTIwYnVyZ2VyJTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzkxNDM4NjcyfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Gourmet burger and fries",
+      "category": "menu_item"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1651993841930-946a700c1524?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwxfHxnb3VybWV0JTIwYnVyZ2VyJTIwZGFyayUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzkxNDM4NjcyfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Hamburger on dark table",
+      "category": "menu_item"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1764545973653-94c40d993495?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBjaGVmJTIwcG9ydHJhaXQlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTE1NjYxOTh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Smiling male chef portrait",
+      "category": "employee_avatar"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1788644889083-dbcacbed4695?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBjaGVmJTIwcG9ydHJhaXQlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3OTE1NjYxOTh8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Chef with cap portrait",
+      "category": "employee_avatar"
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Build the UI primarily in Polish (e.g. 'Stoliki', 'Kasa', 'Zamówienia', 'KDS', 'Ustawienia').",
+    "Use Phosphor Icons via @phosphor-icons/react. Add `yarn add @phosphor-icons/react`.",
+    "Implement Shadcn UI for standard components (Dialogs, Select, Tabs, Inputs) and customize them for the dark theme.",
+    "For the POS visual table floor plan, create clickable rectangular/circular 'Stoliki' (Tables) over a grid background. Color-code by status (e.g., green for paid/open, yellow for occupied).",
+    "In the KDS view, display order tickets in a tight CSS grid. Dynamically change ticket header color based on SLA timers (Green: < 10m, Yellow: 10-20m, Red: > 20m).",
+    "Modifiers in KDS MUST clearly highlight 'ADD' (e.g., green text/badge) and 'REMOVE' (e.g., red text/badge with strikethrough).",
+    "All interactive elements must include 'data-testid' for testing purposes.",
+    "Ensure you write .js or .jsx files, not .tsx files."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Create depth through layered design elements with z-index hierarchy. Do not use flat simplistic gradients.",
+    "Do NOT apply universal transition (e.g., transition: all). Add transitions for specific interactive elements only.",
+    "Do NOT center align the app container in CSS (no .App { text-align: center; }).",
+    "Use modern button styles (pill-shaped or sharp) with interaction animations & color relevant to the app style.",
+    "Never use AI assistant emoji characters for icons.",
+    "Every interaction needs micro-animations (hover states, transitions).",
+    "Use pre-existing components from src/components/ui when applicable.",
+    "Use sonner for toasts.",
+    "Ensure the UI uses dark mode primarily with deep neutral surfaces and high-contrast text, avoiding pure black backgrounds."
+  ],
+  "GENERAL_UI_UX_DESIGN_GUIDELINES": [
+    "Prioritize optical alignment over geometrical alignment.",
+    "Use 2-3x more spacing than feels comfortable for general sections, but for POS and KDS rely on compact spacing (p-2, p-4) to avoid excessive scrolling during fast-paced restaurant operations.",
+    "Provide clear feedback (toast, visual state change) for all operations like order creation, modifier addition, and KDS status change.",
+    "Keep typography scalable but strict. Use fluid typography or clamp functions for main headers to avoid overflow."
+  ]
+}

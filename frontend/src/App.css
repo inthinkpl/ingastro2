@@ -1,0 +1,4 @@
+/* Component-specific overrides */
+.App {
+  min-height: 100%;
+}
