@@ -335,7 +335,11 @@ async def pin_login(body: PinLoginIn):
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     tenant = await db.tenants.find_one({"id": user["tenant_id"]})
-    return {"user": user, "tenant": strip_mongo(tenant) if tenant else None}
+    t = strip_mongo(tenant) if tenant else None
+    if t:
+        from modules import effective_modules
+        t["modules"] = await effective_modules(t)
+    return {"user": user, "tenant": t}
 
 
 # ---------------------------------------------------------------------------
@@ -859,6 +863,8 @@ async def on_startup():
         log.warning(f"Index creation: {e}")
     await seed_demo()
     await seed_extensions()
+    from modules import seed_modules
+    await seed_modules()
 
 
 @app.on_event("shutdown")
@@ -878,3 +884,12 @@ app.include_router(inventory_router)
 app.include_router(store_router)
 app.include_router(pyszne_router)
 app.include_router(settings_router)
+
+from modules import (  # noqa: E402
+    admin_router, sms_router, rcp_router, courier_router, public_router,
+)
+app.include_router(admin_router)
+app.include_router(sms_router)
+app.include_router(rcp_router)
+app.include_router(courier_router)
+app.include_router(public_router)

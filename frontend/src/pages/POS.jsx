@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Minus, Trash2, X, ShoppingBag, Search } from "lucide-react";
+import { Plus, Minus, Trash2, X, ShoppingBag, Search, Clock, Delete } from "lucide-react";
 import api from "@/lib/api";
 import { useLocation } from "@/contexts/LocationContext";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,57 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+function RcpDialog({ open, onClose, locationId }) {
+  const [pin, setPin] = useState("");
+  const [busy, setBusy] = useState(false);
+  const press = (d) => setPin((p) => (p.length >= 6 ? p : p + d));
+  const submit = async () => {
+    if (pin.length < 4) return toast.error("PIN ma min. 4 cyfry");
+    setBusy(true);
+    try {
+      const { data } = await api.post("/rcp/clock", { pin, location_id: locationId });
+      if (data.action === "clock_in") {
+        toast.success(`${data.employee_name} – rozpoczęto pracę`);
+      } else {
+        const h = Math.floor(data.minutes / 60), m = data.minutes % 60;
+        toast.success(`${data.employee_name} – zakończono pracę (${h}h ${m}m)`);
+      }
+      setPin("");
+      onClose();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Nieprawidłowy PIN");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && (setPin(""), onClose())}>
+      <DialogContent className="max-w-xs" data-testid="rcp-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Clock size={16} className="text-blue-400" /> Zegar RCP</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">Wpisz PIN, aby odbić wejście lub wyjście z pracy.</p>
+        <div className="flex justify-center gap-2 my-2" data-testid="rcp-pin-display">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={`w-3 h-3 rounded-full ${i < pin.length ? "bg-blue-400" : "bg-white/10"}`} />
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+            <button key={d} onClick={() => press(d)} className="h-14 rounded-md border border-border bg-[#12151c] text-lg font-mono hover:bg-white/5" data-testid={`rcp-key-${d}`}>{d}</button>
+          ))}
+          <button onClick={() => setPin("")} className="h-14 rounded-md border border-border text-sm text-muted-foreground hover:bg-white/5" data-testid="rcp-key-clear"><X size={16} className="mx-auto" /></button>
+          <button onClick={() => press("0")} className="h-14 rounded-md border border-border bg-[#12151c] text-lg font-mono hover:bg-white/5" data-testid="rcp-key-0">0</button>
+          <button onClick={() => setPin((p) => p.slice(0, -1))} className="h-14 rounded-md border border-border text-muted-foreground hover:bg-white/5" data-testid="rcp-key-back"><Delete size={16} className="mx-auto" /></button>
+        </div>
+        <DialogFooter>
+          <Button onClick={submit} disabled={busy} className="w-full bg-blue-500 hover:bg-blue-400" data-testid="rcp-submit">Odbij</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function POS() {
   const { current } = useLocation();
@@ -27,6 +78,7 @@ export default function POS() {
   const [modalMods, setModalMods] = useState([]);
   const [orderType, setOrderType] = useState("DINE_IN");
   const [selectedTable, setSelectedTable] = useState(null);
+  const [rcpOpen, setRcpOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -151,6 +203,9 @@ export default function POS() {
               </Button>
             ))}
           </div>
+          <Button variant="outline" className="border-border bg-transparent gap-2" onClick={() => setRcpOpen(true)} data-testid="rcp-open">
+            <Clock size={14} /> Zegar RCP
+          </Button>
         </div>
 
         <div className="px-5 pt-4 flex items-center gap-2 flex-wrap">
@@ -363,6 +418,8 @@ export default function POS() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RcpDialog open={rcpOpen} onClose={() => setRcpOpen(false)} locationId={current?.id} />
     </div>
   );
 }

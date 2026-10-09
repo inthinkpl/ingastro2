@@ -18,9 +18,12 @@ import Employees from "@/pages/Employees";
 import Inventory from "@/pages/Inventory";
 import StoreSettings from "@/pages/StoreSettings";
 import Integrations from "@/pages/Integrations";
+import RCP from "@/pages/RCP";
 import Store from "@/pages/store/Store";
 import StorePayment from "@/pages/store/StorePayment";
 import StoreOrder from "@/pages/store/StoreOrder";
+import CourierPortal from "@/pages/courier/CourierPortal";
+import AdminPanel from "@/pages/admin/AdminPanel";
 import { detectStoreSlug } from "@/lib/store";
 
 function Protected({ children }) {
@@ -43,6 +46,7 @@ function AppRoutes() {
       <Route path="/s/:slug" element={<Store />} />
       <Route path="/s/:slug/payment/:result" element={<StorePayment />} />
       <Route path="/s/:slug/order/:oid" element={<StoreOrder />} />
+      <Route path="/c/:slug" element={<CourierPortal />} />
       {subSlug && <Route path="/" element={<Navigate to={`/s/${subSlug}`} replace />} />}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/" /> : <Register />} />
@@ -50,24 +54,29 @@ function AppRoutes() {
         path="/*"
         element={
           <Protected>
-            <LocationProvider>
-              <AppShell>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/pos" element={<POS />} />
-                  <Route path="/kds" element={<KDS />} />
-                  <Route path="/orders" element={<Orders />} />
-                  <Route path="/orders/:oid" element={<OrderDetail />} />
-                  <Route path="/menu" element={<Menu />} />
-                  <Route path="/locations" element={<Locations />} />
-                  <Route path="/tables" element={<Tables />} />
-                  <Route path="/employees" element={<Employees />} />
-                  <Route path="/inventory" element={<Inventory />} />
-                  <Route path="/store-settings" element={<StoreSettings />} />
-                  <Route path="/integrations" element={<Integrations />} />
-                </Routes>
-              </AppShell>
-            </LocationProvider>
+            {user?.role === "superadmin" ? (
+              <AdminPanel />
+            ) : (
+              <LocationProvider>
+                <AppShell>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/pos" element={<POS />} />
+                    <Route path="/kds" element={<KDS />} />
+                    <Route path="/orders" element={<Orders />} />
+                    <Route path="/orders/:oid" element={<OrderDetail />} />
+                    <Route path="/menu" element={<Menu />} />
+                    <Route path="/locations" element={<Locations />} />
+                    <Route path="/tables" element={<Tables />} />
+                    <Route path="/employees" element={<Employees />} />
+                    <Route path="/inventory" element={<Inventory />} />
+                    <Route path="/rcp" element={<RCP />} />
+                    <Route path="/store-settings" element={<StoreSettings />} />
+                    <Route path="/integrations" element={<Integrations />} />
+                  </Routes>
+                </AppShell>
+              </LocationProvider>
+            )}
           </Protected>
         }
       />

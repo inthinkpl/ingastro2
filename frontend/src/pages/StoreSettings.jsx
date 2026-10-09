@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Copy, CreditCard, Globe, Package } from "lucide-react";
+import { ExternalLink, Copy, CreditCard, Globe, Package, MessageSquare } from "lucide-react";
 import api, { formatApiError } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -22,14 +22,30 @@ export default function StoreSettings() {
   const [s, setS] = useState(null);
   const [payu, setPayu] = useState({ pos_id: "", md5_second_key: "", client_id: "", client_secret: "", sandbox: true });
   const [saving, setSaving] = useState(false);
+  const [sms, setSms] = useState(null);
 
   const load = async () => {
     const { data } = await api.get("/settings");
     setS(data);
   };
+  const loadSms = async () => {
+    const { data } = await api.get("/sms/settings");
+    setSms(data);
+  };
   useEffect(() => {
     load();
+    loadSms();
   }, []);
+
+  const toggleSms = async (v) => {
+    try {
+      const { data } = await api.put("/sms/settings", { enabled: v });
+      setSms(data);
+      toast.success(v ? "Powiadomienia SMS włączone" : "Powiadomienia SMS wyłączone");
+    } catch (e) {
+      toast.error(formatApiError(e?.response?.data?.detail));
+    }
+  };
 
   const save = async (patch) => {
     setSaving(true);
@@ -128,6 +144,44 @@ export default function StoreSettings() {
         </div>
         <p className="text-xs text-muted-foreground">Anulowanie zamówienia zawsze zwraca składniki na stan.</p>
       </Section>
+
+      {sms && (
+        <Section icon={MessageSquare} title="Powiadomienia SMS dla klientów" testid="store-section-sms">
+          <div className="flex items-center justify-between border border-border rounded-md px-4 py-3">
+            <div>
+              <div className="text-sm font-medium">SMS „Kurier w drodze"</div>
+              <div className="text-xs text-muted-foreground">
+                Gdy kurier wyrusza w trasę, klient dostaje SMS.
+                {sms.platform_enabled
+                  ? ` Płatna usługa: ${Number(sms.price).toFixed(2)} zł za każdy SMS.`
+                  : " Usługa chwilowo niedostępna (wyłączona przez operatora)."}
+              </div>
+            </div>
+            <Switch checked={sms.tenant_enabled} disabled={!sms.platform_enabled} onCheckedChange={toggleSms} data-testid="toggle-sms" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="border border-border rounded-md px-4 py-3">
+              <div className="text-xs text-muted-foreground">Wysłane SMS</div>
+              <div className="font-display text-xl font-semibold" data-testid="sms-sent-total">{sms.sent_total}</div>
+            </div>
+            <div className="border border-border rounded-md px-4 py-3">
+              <div className="text-xs text-muted-foreground">Koszt łącznie</div>
+              <div className="font-display text-xl font-semibold text-blue-400" data-testid="sms-cost-total">{Number(sms.cost_total).toFixed(2)} zł</div>
+            </div>
+          </div>
+          {sms.recent?.length > 0 && (
+            <div className="border border-border rounded-md divide-y divide-border/50">
+              {sms.recent.slice(0, 5).map((m) => (
+                <div key={m.id} className="px-4 py-2.5 flex items-center justify-between gap-3 text-xs" data-testid={`sms-log-${m.id}`}>
+                  <span className="text-muted-foreground font-mono">{m.to}</span>
+                  <span className="flex-1 truncate">{m.body}</span>
+                  <span className="text-muted-foreground">{new Date(m.at).toLocaleString("pl-PL", { dateStyle: "short", timeStyle: "short" })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
     </div>
   );
 }

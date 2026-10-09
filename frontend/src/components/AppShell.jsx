@@ -14,6 +14,9 @@ import {
   Package,
   Globe,
   Plug,
+  Clock,
+  Truck,
+  ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "@/contexts/LocationContext";
@@ -29,16 +32,17 @@ import { Button } from "@/components/ui/button";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
-  { to: "/pos", label: "Kasa POS", icon: Receipt, testid: "nav-pos" },
-  { to: "/kds", label: "KDS Kuchnia", icon: Flame, testid: "nav-kds" },
+  { to: "/pos", label: "Kasa POS", icon: Receipt, testid: "nav-pos", mod: "pos" },
+  { to: "/kds", label: "KDS Kuchnia", icon: Flame, testid: "nav-kds", mod: "kds" },
   { to: "/orders", label: "Zamówienia", icon: ListOrdered, testid: "nav-orders" },
   { to: "/menu", label: "Menu", icon: BookOpenText, testid: "nav-menu" },
   { to: "/tables", label: "Stoliki", icon: Grid3x3, testid: "nav-tables" },
   { to: "/locations", label: "Lokale", icon: Building2, testid: "nav-locations" },
   { to: "/employees", label: "Personel", icon: Users, testid: "nav-employees" },
-  { to: "/inventory", label: "Magazyn BOM", icon: Package, testid: "nav-inventory" },
-  { to: "/store-settings", label: "Sklep online", icon: Globe, testid: "nav-store-settings" },
-  { to: "/integrations", label: "Integracje", icon: Plug, testid: "nav-integrations" },
+  { to: "/rcp", label: "RCP Czas pracy", icon: Clock, testid: "nav-rcp", mod: "rcp" },
+  { to: "/inventory", label: "Magazyn BOM", icon: Package, testid: "nav-inventory", mod: "inventory" },
+  { to: "/store-settings", label: "Sklep online", icon: Globe, testid: "nav-store-settings", mod: "ecommerce" },
+  { to: "/integrations", label: "Integracje", icon: Plug, testid: "nav-integrations", mod: "pyszne" },
 ];
 
 export default function AppShell({ children }) {
@@ -46,6 +50,9 @@ export default function AppShell({ children }) {
   const { locations, current, selectLocation } = useLocation();
   const router = useRouterLocation();
   const navigate = useNavigate();
+  const mods = tenant?.modules || {};
+  const navItems = NAV.filter((n) => !n.mod || mods[n.mod] !== false);
+  const courierEnabled = mods.courier !== false;
 
   return (
     <div className="flex h-screen bg-[#0a0c10] text-foreground">
@@ -62,7 +69,7 @@ export default function AppShell({ children }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {NAV.map((n) => {
+          {navItems.map((n) => {
             const Active = router.pathname === n.to || (n.to !== "/" && router.pathname.startsWith(n.to));
             const Icon = n.icon;
             return (
@@ -81,6 +88,19 @@ export default function AppShell({ children }) {
               </Link>
             );
           })}
+          {courierEnabled && tenant?.slug && (
+            <a
+              href={`/c/${tenant.slug}`}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="nav-courier"
+              className="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors text-muted-foreground hover:bg-white/5 hover:text-foreground"
+            >
+              <Truck size={16} />
+              <span className="flex-1">Aplikacja Kuriera</span>
+              <ExternalLink size={12} className="opacity-50" />
+            </a>
+          )}
         </nav>
 
         <div className="p-3 border-t border-border">
