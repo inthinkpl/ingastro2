@@ -1,0 +1,30 @@
+{
+  "summary": "Comprehensive testing of inGastro Cloud OS iteration 2 (Magazyn/BOM, Public Storefront + Stripe, Pyszne.pl integration). Backend: 23/23 pytest cases pass covering settings/PayU validation, inventory CRUD + stock + movements + alerts, stock deduction (on_create -> deduct 250g & cancel_return, on_ready -> defer until ready), public store (no auth, no recipes), min_order/address validation, cash + online flows, pending_payment hidden from /orders?status=new, Stripe checkout session creation + idempotency, pyszne webhook auth (missing/wrong key -> 401, disabled -> 401), SKU + name mapping with variant 40cm & Rukola modifier, extras mapping, idempotency by order_id, unmapped item detection, test-order, menu-export, menu-push (simulated). Frontend: all sidebar entries (Magazyn BOM, Sklep online, Integracje) rendered, /inventory shows 15 ingredients with stock-qty/stock-row/add-delivery/add-ingredient and tabs; /store-settings has deduction & provider toggles (provider-payu without creds returned 400 as expected), open-store-link points to /s/pizzeria-savona; /integrations generates key, test-order appends row, menu-push shows 'Wypchnięto 11 produktów (simulated)' toast; public storefront at /s/pizzeria-savona works with store-name, category tabs, product-dialog with variants/modifiers/qty-plus, add-to-cart, cart-subtotal, go-checkout, checkout-form (name/phone/address), cash path navigates to /s/pizzeria-savona/order/{id} with order-tracking step-new active and order-total 73 zł (64 + 9 dostawa), online path redirects to checkout.stripe.com (confirmed URL). /s/unknown-slug shows store-error, /payment/cancel shows payment-cancelled. KDS shows PYSZNE.PL badges via kds-source-*, /orders shows order-source-* with 'Online'/'Pyszne.pl' and 'Oczekuje na płatność' status badge for pending_payment orders.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CheckoutForm (public storefront)", "issues": ["React hydration warning in console: <span> cannot be a child of <option>. Caused by a dev-only tracker wrapper inside <select><option>{l.name}</option></select> in CheckoutForm.jsx line ~55. Non-blocking but prints an error on every public order render."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_extensions.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "(cosmetic) The <option> renders a <span> child in dev builds (visual editor instrumentation). Consider rendering {l.name} as a plain string or using a shadcn Select to avoid the React hydration warning.",
+    "No functional issues – PayU real-checkout path untested (no merchant creds); only validation/config paths exercised as instructed."
+  ],
+  "critical_code_review_comments": [
+    "extensions.py is ~950 lines – consider splitting into submodules (settings/, inventory/, store/, aggregators/) for maintainability.",
+    "payu_token in-process cache _payu_tokens: Dict[str, tuple] is not safe for multi-worker uvicorn deployments; move to Redis or DB if horizontally scaled.",
+    "map_pyszne_items iterates products in Python per item (O(N·M)); fine for demo but add an index on products.sku if catalogs grow.",
+    "public_create_order recomputes pricing from catalog (good – never trusts client); min_order check happens BEFORE adding delivery_fee – intentional per spec but documented inline would help.",
+    "Idempotency on pyszne webhook uses external_id + aggregator – good; but no replay protection within the same order_id window if payload mutates (not required by spec)."
+  ],
+  "updated_files": ["/app/backend/tests/test_extensions.py (new, 23 tests)"],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "100%"},
+  "test_credentials": "demo@savona.pl / demo1234 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Tests created a few TEST_ ingredients (self-cleaned), stock-movements with note=TEST (harmless), and a handful of orders (TEST customer_name, TEST Online, TEST Klient) + Pyszne test orders. State restored at the end: stock_deduction_mode=on_create, payment_provider=stripe, payu cleared.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite at /app/backend/tests/test_extensions.py (run with `pytest -n 0` to serialize – xdist parallel execution causes shared-state races on inventory/stock deduction tests). Iteration 1 covered auth/POS/KDS/orders basics (already green). Known cosmetic issue: CheckoutForm renders a dev-time instrumentation <span> inside <option> causing hydration warning. Everything else is clean."
+}

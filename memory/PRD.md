@@ -32,12 +32,17 @@ Chmurowy system SaaS klasy ERP/POS do kompleksowego zarządzania sieciami lokali
 - ✅ Dark ERP UI (Outfit + IBM Plex Sans), Polish i18n
 - ✅ Seed demo tenant "Pizzeria Savona" with 2 locations, 10 tables, 5 categories, 11 products, 4 employees
 
+## Implemented 2026-06 (iteration 2) – `/app/backend/extensions.py`
+- ✅ **Magazyn BOM**: ingredients CRUD, per-location stock levels, movements (delivery/waste/adjust/order/cancel_return), recipes per product + per-variant lines, modifier→ingredient links, low-stock alerts. Auto deduction on order (tenant setting `stock_deduction_mode`: `on_create` default | `on_ready`), return on cancel. UI `/inventory` (4 tabs + RecipeEditor).
+- ✅ **E-Commerce storefront**: public `/s/{slug}` (+ subdomain detection in `lib/store.js`, `store_domain` setting), server-side pricing, cash / online payment. Online orders start `pending_payment` → `new` + KDS broadcast only after payment. **Stripe** claimable sandbox (Flow A, PL account, Stripe-calculates tax w/ tax_code txcd_40060003 inclusive, fallback no-tax), webhook `/api/stripe/webhook`, status poll `/api/public/payments/status/{sid}`. **PayU** per-tenant encrypted creds (Fernet from JWT_SECRET), OAuth + `/api/v2_1/orders`, notify `/api/payments/payu/notify/{tenant_id}` MD5 signature. Settings UI `/store-settings`. Tracking page `/s/{slug}/order/{id}`.
+- ✅ **Pyszne.pl**: per-location API key, webhook `POST /api/integrations/pyszne/orders` (header `X-Pyszne-Api-Key`), SKU/name→product/variant mapping, extras→modifiers, unmapped flag, idempotent on `order_id`, source AGGREGATOR badge on KDS/Orders, test-order button, Menu Push (JSON export; real push if `menu_push_url` set, else `simulated`). UI `/integrations`.
+- Tests: `/app/test_reports/iteration_2.json` (23/23 backend, all frontend flows pass).
+
 ## Deferred Backlog (P1 / P2)
-- **P1**: E-Commerce storefront per tenant (subdomain), Stripe/PayU payment integration, SMS OTP loyalty, Delivery geofencing & courier mobile wallet
-- **P1**: Magazyn BOM + Recipes (ingredient deduction on order close), low-stock alerts, waste logging
+- **P1**: SMS OTP loyalty, Delivery geofencing & courier mobile wallet
 - **P2**: RCP time logs (clock-in/out via PIN), payroll export
-- **P2**: Pyszne.pl aggregator integration (Order Ingestion + Menu Push)
 - **P2**: ESC/POS local print relay service
+- **P2**: Stripe refunds UI, PayU production credentials from user (not yet provided)
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`
